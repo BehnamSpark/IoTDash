@@ -1,12 +1,7 @@
-/* eslint-disable max-classes-per-file */
-/* eslint-disable no-restricted-globals */
-/* eslint-disable no-undef */
 $(document).ready(() => {
-  // if deployed to a site supporting SSL, use wss://
   const protocol = document.location.protocol.startsWith('https') ? 'wss://' : 'ws://';
   const webSocket = new WebSocket(protocol + location.host);
 
-  // A class for holding the last N points of telemetry for a device
   class DeviceData {
     constructor(deviceId) {
       this.deviceId = deviceId;
@@ -14,36 +9,36 @@ $(document).ready(() => {
       this.timeData = new Array(this.maxLen);
       this.temperatureData = new Array(this.maxLen);
       this.humidityData = new Array(this.maxLen);
+      this.pressureData = new Array(this.maxLen);
+      this.packetCountData = new Array(this.maxLen).fill(0);
+      this.packetCount = 0;
     }
 
-    addData(time, temperature, humidity) {
+    addData(time, temperature, humidity, pressure) {
       this.timeData.push(time);
       this.temperatureData.push(temperature);
       this.humidityData.push(humidity || null);
+      this.pressureData.push(pressure || null);
+      this.packetCount += 1;
+      this.packetCountData.push(this.packetCount);
 
       if (this.timeData.length > this.maxLen) {
         this.timeData.shift();
         this.temperatureData.shift();
         this.humidityData.shift();
+        this.pressureData.shift();
+        this.packetCountData.shift();
       }
     }
   }
 
-  // All the devices in the list (those that have been sending telemetry)
   class TrackedDevices {
     constructor() {
       this.devices = [];
     }
 
-    // Find a device based on its Id
     findDevice(deviceId) {
-      for (let i = 0; i < this.devices.length; ++i) {
-        if (this.devices[i].deviceId === deviceId) {
-          return this.devices[i];
-        }
-      }
-
-      return undefined;
+      return this.devices.find(device => device.deviceId === deviceId);
     }
 
     getDevicesCount() {
@@ -53,134 +48,108 @@ $(document).ready(() => {
 
   const trackedDevices = new TrackedDevices();
 
-  // Define the chart axes
-  const chartData = {
-    datasets: [
-      {
-        fill: false,
-        label: 'Temperature',
-        yAxisID: 'Temperature',
-        borderColor: 'rgba(255, 204, 0, 1)',
-        pointBoarderColor: 'rgba(255, 204, 0, 1)',
-        backgroundColor: 'rgba(255, 204, 0, 0.4)',
-        pointHoverBackgroundColor: 'rgba(255, 204, 0, 1)',
-        pointHoverBorderColor: 'rgba(255, 204, 0, 1)',
-        spanGaps: true,
-      },
-      {
-        fill: false,
-        label: 'Humidity',
-        yAxisID: 'Humidity',
-        borderColor: 'rgba(24, 120, 240, 1)',
-        pointBoarderColor: 'rgba(24, 120, 240, 1)',
-        backgroundColor: 'rgba(24, 120, 240, 0.4)',
-        pointHoverBackgroundColor: 'rgba(24, 120, 240, 1)',
-        pointHoverBorderColor: 'rgba(24, 120, 240, 1)',
-        spanGaps: true,
-      }
-    ]
-  };
-
-  const chartOptions = {
-    scales: {
-      yAxes: [{
-        id: 'Temperature',
-        type: 'linear',
-        scaleLabel: {
-          labelString: 'Temperature (ºC)',
-          display: true,
-        },
-        position: 'left',
-        ticks: {
-          suggestedMin: 0,
-          suggestedMax: 100,
-          beginAtZero: true
-        }
-      },
-      {
-        id: 'Humidity',
-        type: 'linear',
-        scaleLabel: {
-          labelString: 'Humidity (%)',
-          display: true,
-        },
-        position: 'right',
-        ticks: {
-          suggestedMin: 0,
-          suggestedMax: 100,
-          beginAtZero: true
-        }
-      }]
-    }
-  };
-
-  // Get the context of the canvas element we want to select
-  const ctx = document.getElementById('iotChart').getContext('2d');
-  const myLineChart = new Chart(
-    ctx,
-    {
+  function createChart(ctx, label, yAxisLabel, color) {
+    return new Chart(ctx, {
       type: 'line',
-      data: chartData,
-      options: chartOptions,
+      data: {
+        labels: [],
+        datasets: [{
+          label,
+          fill: false,
+          borderColor: color,
+          backgroundColor: color,
+          pointBorderColor: color,
+          pointHoverBackgroundColor: color,
+        }],
+      },
+      options: {
+        scales: {
+          y: {
+            title: { display: true, text: yAxisLabel },
+            beginAtZero: true,
+          },
+          x: {
+            title: { display: true, text: 'Time' },
+          },
+        },
+      },
     });
-
-  // Manage a list of devices in the UI, and update which device data the chart is showing
-  // based on selection
-  let needsAutoSelect = true;
-  const deviceCount = document.getElementById('deviceCount');
-  const listOfDevices = document.getElementById('listOfDevices');
-  function OnSelectionChange() {
-    const device = trackedDevices.findDevice(listOfDevices[listOfDevices.selectedIndex].text);
-    chartData.labels = device.timeData;
-    chartData.datasets[0].data = device.temperatureData;
-    chartData.datasets[1].data = device.humidityData;
-    myLineChart.update();
   }
-  listOfDevices.addEventListener('change', OnSelectionChange, false);
 
-  // When a web socket message arrives:
-  // 1. Unpack it
-  // 2. Validate it has date/time and temperature
-  // 3. Find or create a cached device to hold the telemetry data
-  // 4. Append the telemetry data
-  // 5. Update the chart UI
+  const temperatureChart = createChart(
+    document.getElementById('temperatureChart').getContext('2d'),
+    'Temperature (ºC)',
+    'Temperature (ºC)',
+    'rgba(255, 99, 132, 1)'
+  );
+
+  const humidityChart = createChart(
+    document.getElementById('humidityChart').getContext('2d'),
+    'Humidity (%)',
+    'Humidity (%)',
+    'rgba(54, 162, 235, 1)'
+  );
+
+  const pressureChart = createChart(
+    document.getElementById('pressureChart').getContext('2d'),
+    'Pressure (Pa)',
+    'Pressure (Pa)',
+    'rgba(75, 192, 192, 1)'
+  );
+
+  const packetCountChart = createChart(
+    document.getElementById('packetCountChart').getContext('2d'),
+    'Packet Count',
+    'Packet Count',
+    'rgba(153, 102, 255, 1)'
+  );
+
+  function updateChartData(device) {
+    temperatureChart.data.labels = device.timeData;
+    temperatureChart.data.datasets[0].data = device.temperatureData;
+    temperatureChart.update();
+
+    humidityChart.data.labels = device.timeData;
+    humidityChart.data.datasets[0].data = device.humidityData;
+    humidityChart.update();
+
+    pressureChart.data.labels = device.timeData;
+    pressureChart.data.datasets[0].data = device.pressureData;
+    pressureChart.update();
+
+    packetCountChart.data.labels = device.timeData;
+    packetCountChart.data.datasets[0].data = device.packetCountData;
+    packetCountChart.update();
+  }
+
   webSocket.onmessage = function onMessage(message) {
     try {
       const messageData = JSON.parse(message.data);
-      console.log(messageData);
-
-      // time and either temperature or humidity are required
-      if (!messageData.MessageDate || (!messageData.IotData.temperature && !messageData.IotData.humidity)) {
+      if (!messageData.MessageDate || (!messageData.IotData.temperature && !messageData.IotData.humidity && !messageData.IotData.pressure)) {
         return;
       }
 
-      // find or add device to list of tracked devices
-      const existingDeviceData = trackedDevices.findDevice(messageData.DeviceId);
+      let device = trackedDevices.findDevice(messageData.DeviceId);
 
-      if (existingDeviceData) {
-        existingDeviceData.addData(messageData.MessageDate, messageData.IotData.temperature, messageData.IotData.humidity);
-      } else {
-        const newDeviceData = new DeviceData(messageData.DeviceId);
-        trackedDevices.devices.push(newDeviceData);
-        const numDevices = trackedDevices.getDevicesCount();
-        deviceCount.innerText = numDevices === 1 ? `${numDevices} device` : `${numDevices} devices`;
-        newDeviceData.addData(messageData.MessageDate, messageData.IotData.temperature, messageData.IotData.humidity);
+      if (!device) {
+        device = new DeviceData(messageData.DeviceId);
+        trackedDevices.devices.push(device);
+        device.addData(messageData.MessageDate, messageData.IotData.temperature, messageData.IotData.humidity, messageData.IotData.pressure);
 
-        // add device to the UI list
+        // Add device to the UI list if this is a new device
         const node = document.createElement('option');
-        const nodeText = document.createTextNode(messageData.DeviceId);
-        node.appendChild(nodeText);
+        node.textContent = messageData.DeviceId;
         listOfDevices.appendChild(node);
 
-        // if this is the first device being discovered, auto-select it
-        if (needsAutoSelect) {
-          needsAutoSelect = false;
+        // Auto-select the first device
+        if (trackedDevices.getDevicesCount() === 1) {
           listOfDevices.selectedIndex = 0;
-          OnSelectionChange();
         }
+      } else {
+        device.addData(messageData.MessageDate, messageData.IotData.temperature, messageData.IotData.humidity, messageData.IotData.pressure);
       }
 
-      myLineChart.update();
+      updateChartData(device);
     } catch (err) {
       console.error(err);
     }

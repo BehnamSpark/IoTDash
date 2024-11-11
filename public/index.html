@@ -1,30 +1,43 @@
 <!doctype html>
-
 <html lang="en">
 <head>
-    <!-- Required meta tags -->
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1, shrink-to-fit=no">
 
-    <script src="https://code.jquery.com/jquery-3.4.0.min.js" integrity="sha256-BJeo0qm959uMBGb65z40ejJYGSgR7REI4+CW1fNKwOg=" crossorigin="anonymous"" type="text/javascript" charset="utf-8"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0/dist/Chart.min.js" type="text/javascript" charset="utf-8"></script>
-    <script src="js/chart-device-data.js" type="text/javascript" charset="utf-8"></script>
+    <script src="https://code.jquery.com/jquery-3.4.0.min.js" integrity="sha256-BJeo0qm959uMBGb65z40ejJYGSgR7REI4+CW1fNKwOg=" crossorigin="anonymous"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@2.8.0/dist/Chart.min.js"></script>
+    <script src="js/chart-device-data.js"></script>
     <link href="css/style.css" rel="stylesheet" />
 
-    <title>Temperature &amp; Humidity Real-time Data</title>
+    <title>Real-time IoT Data Monitoring</title>
 </head>
-
 <body>
     <h1 class="flexHeader">
         <span>
-            <span id="deviceCount">0 devices</span>
+            <span id="deviceCount">devices</span>
             <select id="listOfDevices" class="select_box"></select>
         </span>
-        <span>Temperature & Humidity Real-time Data</span>
+        <span>Real-time IoT Data Monitoring</span>
     </h1>
-    <div>
-        <canvas id="iotChart"></canvas>
+
+    <!-- 2x2 grid for the charts -->
+    <div class="chart-grid">
+        <div class="chart-container">
+            <h2>Temperature Data</h2>
+            <canvas id="temperatureChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>Humidity Data</h2>
+            <canvas id="humidityChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>Pressure Data</h2>
+            <canvas id="pressureChart"></canvas>
+        </div>
+        <div class="chart-container">
+            <h2>Packet Count</h2>
+            <canvas id="packetCountChart"></canvas>
+        </div>
     </div>
 </body>
-
 </html>
