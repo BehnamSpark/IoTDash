@@ -54,7 +54,7 @@ const eventHubReader = new EventHubReader(iotHubConnectionString, eventHubConsum
       const payload = {
         IotData: message,
         MessageDate: date || Date.now().toISOString(),
-        DeviceId: deviceId,
+        DeviceId: message.deviceId,
       };
 
       wss.broadcast(JSON.stringify(payload));
