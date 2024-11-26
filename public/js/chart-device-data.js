@@ -2,10 +2,16 @@ $(document).ready(() => {
   const protocol = document.location.protocol.startsWith('https') ? 'wss://' : 'ws://';
   const webSocket = new WebSocket(protocol + location.host);
 
+  // Color mapping based on DeviceId
+  const deviceColors = {
+    "10": "red",
+    "52": "blue"
+  };
+
   class DeviceData {
     constructor(deviceId) {
       this.deviceId = deviceId;
-      this.maxLen = 20; // Fixed number of data points (20)
+      this.maxLen = 30; // Limit the number of data points to 20 for recent data
       this.timeData = [];
       this.temperatureData = [];
       this.humidityData = [];
@@ -68,10 +74,8 @@ $(document).ready(() => {
         x: {
           title: { display: true, text: 'Time' },
           ticks: {
-            maxTicksLimit: 20, // Always show 20 ticks
-            autoSkip: true, // Skip ticks if needed
-            maxRotation: 90, // Rotate the labels if needed
-            minRotation: 45, // Minimum rotation for readability
+            autoSkip: true, // Ensure labels don't overlap
+            maxRotation: 90, // Rotate the labels for better visibility
           },
         },
       },
@@ -94,10 +98,8 @@ $(document).ready(() => {
         x: {
           title: { display: true, text: 'Time' },
           ticks: {
-            maxTicksLimit: 20,
             autoSkip: true,
             maxRotation: 90,
-            minRotation: 45,
           },
         },
       },
@@ -120,10 +122,8 @@ $(document).ready(() => {
         x: {
           title: { display: true, text: 'Time' },
           ticks: {
-            maxTicksLimit: 20,
             autoSkip: true,
             maxRotation: 90,
-            minRotation: 45,
           },
         },
       },
@@ -132,7 +132,9 @@ $(document).ready(() => {
 
   // Function to update the chart data for a given device
   function updateChartData(device) {
-    // For temperature chart (green)
+    const color = deviceColors[device.deviceId]; // Get color based on DeviceId
+
+    // For temperature chart
     let existingTemperatureDataset = temperatureChart.data.datasets.find(dataset => dataset.label === `Device ${device.deviceId}`);
     if (existingTemperatureDataset) {
       existingTemperatureDataset.data = device.temperatureData;
@@ -141,14 +143,14 @@ $(document).ready(() => {
         label: `Device ${device.deviceId}`,
         data: device.temperatureData,
         fill: false,
-        borderColor: 'green',
-        backgroundColor: 'green',
-        pointBorderColor: 'green',
-        pointHoverBackgroundColor: 'green',
+        borderColor: color, // Use specific color for device
+        backgroundColor: color,
+        pointBorderColor: color,
+        pointHoverBackgroundColor: color,
       });
     }
 
-    // For humidity chart (blue)
+    // For humidity chart
     let existingHumidityDataset = humidityChart.data.datasets.find(dataset => dataset.label === `Device ${device.deviceId}`);
     if (existingHumidityDataset) {
       existingHumidityDataset.data = device.humidityData;
@@ -157,14 +159,14 @@ $(document).ready(() => {
         label: `Device ${device.deviceId}`,
         data: device.humidityData,
         fill: false,
-        borderColor: 'blue',
-        backgroundColor: 'blue',
-        pointBorderColor: 'blue',
-        pointHoverBackgroundColor: 'blue',
+        borderColor: color,
+        backgroundColor: color,
+        pointBorderColor: color,
+        pointHoverBackgroundColor: color,
       });
     }
 
-    // For pressure chart (red)
+    // For pressure chart
     let existingPressureDataset = pressureChart.data.datasets.find(dataset => dataset.label === `Device ${device.deviceId}`);
     if (existingPressureDataset) {
       existingPressureDataset.data = device.pressureData;
@@ -173,10 +175,10 @@ $(document).ready(() => {
         label: `Device ${device.deviceId}`,
         data: device.pressureData,
         fill: false,
-        borderColor: 'red',
-        backgroundColor: 'red',
-        pointBorderColor: 'red',
-        pointHoverBackgroundColor: 'red',
+        borderColor: color,
+        backgroundColor: color,
+        pointBorderColor: color,
+        pointHoverBackgroundColor: color,
       });
     }
 
@@ -184,13 +186,6 @@ $(document).ready(() => {
     temperatureChart.data.labels = device.timeData;
     humidityChart.data.labels = device.timeData;
     pressureChart.data.labels = device.timeData;
-
-    // Ensure only the latest 20 values are shown on the X-axis
-    if (device.timeData.length > 20) {
-      temperatureChart.data.labels = device.timeData.slice(-20);
-      humidityChart.data.labels = device.timeData.slice(-20);
-      pressureChart.data.labels = device.timeData.slice(-20);
-    }
 
     // Re-render the charts with updated data
     temperatureChart.update();
@@ -202,8 +197,9 @@ $(document).ready(() => {
   webSocket.onmessage = function onMessage(message) {
     try {
       const messageData = JSON.parse(message.data);
-      if (!messageData.MessageDate || !messageData.IotData.temperature) {
-        return; // Ignore invalid or incomplete data
+      // Skip the message if DeviceId is not "10" or "52", or if the message data is invalid
+      if (!["10", "52"].includes(messageData.DeviceId) || !messageData.MessageDate || !messageData.IotData.temperature) {
+        return; // Ignore data from devices other than 10 and 52, or invalid/incomplete data
       }
 
       // Check if the device exists in the tracked devices list
